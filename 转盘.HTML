@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>🎯 幸运大转盘 - 限制抽奖次数 & 手机号验证</title>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <style>
+        :root {
+            --bg: #f0f4f8;
+            --card-bg: #ffffff;
+            --primary: #4f46e5;
+            --primary-hover: #4338ca;
+            --danger: #ef4444;
+            --success: #10b981;
+            --text: #1e293b;
+            --text-secondary: #64748b;
+            --border: #e2e8f0;
+            --shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+            --radius: 16px;
+            --transition: 0.2s ease;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        .tab-nav {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            padding: 20px 20px 0;
+            position: sticky;
+            top: 0;
+            background: rgba(240, 244, 248, 0.85);
+            backdrop-filter: blur(10px);
+            z-index: 100;
+        }
+        .tab-btn {
+            padding: 12px 28px;
+            border-radius: 50px;
+            font-weight: 700;
+            font-size: 15px;
+            cursor: pointer;
+            border: 2px solid transparent;
+            background: #fff;
+            color: #475569;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+            transition: 0.25s;
+        }
+        .tab-btn.active {
+            background: var(--primary);
+            color: #fff;
+            border-color: var(--primary);
+            box-shadow: 0 6px 18px rgba(79, 70, 229, 0.25);
+        }
+        .view-container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 24px 20px 60px;
+            display: none;
+        }
+        .view-container.active {
+            display: block;
+        }
+        .card {
+            background: var(--card-bg);
+            border-radius: var(--radius);
+            padding: 28px 30px;
+            margin-bottom: 20px;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border);
+        }
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+        .card-title {
+            font-size: 18px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--primary);
+            display: inline-block;
+        }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            padding: 10px 18px;
+            border-radius: 50px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            border: 2px solid var(--primary);
+            background: #fff;
+            color: var(--primary);
+            transition: all var(--transition);
+            white-space: nowrap;
+        }
+        .btn-primary {
+            background: var(--primary);
+            color: #fff;
+        }
+        .btn-primary:hover {
+            background: var(--primary-hover);
+        }
+        .btn-outline {
+            background: #fff;
+            color: var(--primary);
+            border: 2px solid var(--primary);
+        }
+        .btn-outline:hover {
+            background: #f5f3ff;
+        }
+        .btn-danger {
+            color: var(--danger);
+            border-color: var(--danger);
+        }
+        .btn-danger:hover {
+            background: #fef2f2;
+        }
+        .btn-sm {
+            padding: 6px 14px;
+            font-size: 12px;
+        }
+        .btn-xs {
+            padding: 4px 10px;
+            font-size: 11px;
+            border-radius: 6px;
+        }
+        .prize-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .prize-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 14px 16px;
+            background: #f8fafc;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            flex-wrap: wrap;
+        }
+        .prize-item input[type="text"] {
+            flex: 2;
+            min-width: 160px;
+            padding: 9px 12px;
+            border: 1.5px solid var(--border);
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        .prize-item .prob-input {
+            width: 70px;
+            padding: 9px 8px;
+            border: 1.5px solid var(--border);
+            border-radius: 8px;
+            font-size: 14px;
+            text-align: center;
+            font-weight: 600;
+        }
+        .prob-slider {
+            width: 90px;
+            accent-color: var(--primary);
+        }
+        .prob-unit {
+            font-weight: 600;
+            color: var(--text-secondary);
+            font-size: 13px;
+        }
+        .prob-summary {
+            padding: 12px 16px;
+            border-radius: 10px;
+            margin-top: 10px;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        .prob-summary.valid {
+            background: #ecfdf5;
+            color: #065f46;
+            border: 1px solid #a7f3d0;
+        }
+        .prob-summary.invalid {
+            background: #fef2f2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+        }
+        .toggle-row {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 14px 0;
+            flex-wrap: wrap;
+        }
+        .toggle-label {
+            font-weight: 700;
+            font-size: 15px;
+        }
+        .toggle-switch {
+            position: relative;
+            width: 56px;
+            height: 30px;
+            background: #cbd5e1;
+            border-radius: 30px;
+            cursor: pointer;
+            transition: 0.3s;
+            flex-shrink: 0;
+        }
+        .toggle-switch.active {
+            background: var(--success);
+        }
+        .toggle-switch::after {
+            content: '';
+            position: absolute;
+            top: 3px;
+            left: 3px;
+            width: 24px;
+            height: 24px;
+            background: #fff;
+            border-radius: 50%;
+            transition: 0.3s;
+        }
+        .toggle-switch.active::after {
+            left: 29px;
+        }
+        .setting-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 0;
+            flex-wrap: wrap;
+        }
+        .setting-row label {
+            font-weight: 600;
+            font-size: 14px;
+            min-width: 80px;
+        }
+        .setting-row input[type="range"] {
+            flex: 1;
+            min-width: 100px;
+            accent-color: var(--primary);
+        }
+        .setting-row .val {
+            font-weight: 700;
+            color: var(--primary);
+            min-width: 40px;
+            text-align: center;
+        }
+        .table-wrap {
+            max-height: 220px;
+            overflow: auto;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin-top: 12px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        th, td {
+            padding: 8px 12px;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        th {
+            background: #f8fafc;
+            position: sticky;
+            top: 0;
+        }
+        .toast {
+            position: fixed;
+            top: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-120px);
+            background: #1e293b;
+            color: #fff;
+            padding: 12px 24px;
+            border-radius: 50px;
+            font-weight: 600;
+            font-size: 14px;
+            z-index: 9999;
+            pointer-events: none;
+            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
+        }
+        .toast.show {
+            transform: translateX(-50%) translateY(0);
+        }
+        .wheel-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 24px;
+        }
+        .canvas-container {
+            position: relative;
+            width: 460px;
+            height: 460px;
+            margin: 0 auto;
+            max-width: 90vw;
+            max-height: 90vw;
+        }
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        .pointer {
+            position: absolute;
+            top: -15px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            border-left: 18px solid transparent;
+            border-right: 18px solid transparent;
+            border-top: 32px solid #1e293b;
+            filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3));
+            z-index: 10;
+        }
+        .center-btn {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80px;
+            height: 80px;
+            background: #fff;
+            border-radius: 50%;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+            border: 4px solid #e2e8f0;
+            cursor: pointer;
+            z-index: 12;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 18px;
+            transition: all 0.2s;
+        }
+        .center-btn.disabled {
+            pointer-events: none;
+            opacity: 0.7;
+        }
+        .result-panel {
+            background: #f8fafc;
+            border-radius: 16px;
+            padding: 16px 20px;
+            text-align: center;
+            border: 1px solid #e2e8f0;
+            width: 100%;
+            font-weight: 500;
+        }
+        .auth-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            background: #f8fafc;
+            padding: 24px 20px;
+            border-radius: 16px;
+            width: 100%;
+            max-width: 400px;
+        }
+        .auth-box input {
+            padding: 10px 14px;
+            border-radius: 8px;
+            border: 2px solid var(--border);
+            font-size: 14px;
+            width: 220px;
+            text-align: center;
+        }
+        .mode-badge {
+            display: inline-block;
+            padding: 6px 16px;
+            border-radius: 50px;
+            font-weight: 700;
+            font-size: 13px;
+        }
+        .mode-badge.free { background: #dbeafe; color: #1e40af; }
+        .mode-badge.restricted { background: #fef3c7; color: #92400e; }
+        .theme-grid { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+        .theme-chip {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 16px;
+            border-radius: 50px;
+            cursor: pointer;
+            border: 2px solid transparent;
+            font-weight: 600;
+            font-size: 13px;
+            background: #f8fafc;
+        }
+        .theme-chip.active {
+            border-color: var(--primary);
+            background: #f5f3ff;
+            color: var(--primary);
+        }
+        @media (max-width: 500px) {
+            .canvas-container { width: 320px; height: 320px; }
+            .center-btn { width: 64px; height: 64px; font-size: 15px; }
+            .card { padding: 18px 14px; }
+            .prize-item input[type="text"] { min-width: 120px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="tab-nav">
+    <button class="tab-btn active" data-tab="config">⚙️ 转盘配置</button>
+    <button class="tab-btn" data-tab="wheel">🎡 抽奖转盘</button>
+</div>
+
+<!-- 配置视图 -->
+<div class="view-container active" id="viewConfig">
+    <div style="text-align:center; margin-bottom:24px;">
+        <span style="font-size:48px;">⚙️</span>
+        <h1>转盘配置中心</h1>
+        <p>自定义奖品、概率、门槛金额、抽奖次数，中奖名单一键导出</p>
+    </div>
+
+    <!-- 奖品配置 -->
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title"><span class="dot"></span>奖品列表</span>
+            <div><button class="btn btn-outline btn-sm" onclick="addPrize()">＋ 添加奖品</button>
+            <button class="btn btn-outline btn-sm" onclick="resetToDefault()">↺ 恢复默认</button></div>
+        </div>
+        <div class="prize-list" id="prizeList"></div>
+        <div class="prob-summary valid" id="probSummary">✅ 概率总和：100%</div>
+    </div>
+
+    <!-- 样式配置 -->
+    <div class="card">
+        <div class="card-header"><span class="card-title"><span class="dot" style="background:#f59e0b;"></span>转盘样式</span></div>
+        <div class="theme-grid" id="themeGrid"></div>
+        <div class="setting-row"><label>🖊️ 文字颜色</label><input type="color" id="textColor" value="#ffffff" onchange="onSettingChange()"></div>
+        <div class="setting-row"><label>🎯 指针颜色</label><input type="color" id="pointerColor" value="#1e293b" onchange="onSettingChange()"></div>
+        <div class="setting-row"><label>⭕ 中心圆颜色</label><input type="color" id="centerColor" value="#ffffff" onchange="onSettingChange()"></div>
+        <div class="setting-row"><label>🔄 最少旋转圈数</label><input type="range" id="minSpins" min="3" max="12" value="6" oninput="document.getElementById('minSpinsVal').textContent=this.value;onSettingChange()"><span class="val" id="minSpinsVal">6</span></div>
+        <div class="setting-row"><label>⏱️ 旋转时间</label><input type="range" id="duration" min="3" max="10" value="5" step="0.5" oninput="document.getElementById('durationVal').textContent=this.value+'s';onSettingChange()"><span class="val" id="durationVal">5s</span></div>
+    </div>
+
+    <!-- 抽奖门槛控制 & 次数限制 -->
+    <div class="card">
+        <div class="card-header"><span class="card-title"><span class="dot" style="background:#8b5cf6;"></span>抽奖规则控制</span></div>
+        <div class="toggle-row">
+            <span class="toggle-label">🏷️ 抽奖模式：</span>
+            <div class="toggle-switch" id="thresholdToggle" onclick="toggleThreshold()"></div>
+            <span style="font-weight:700;" id="thresholdLabel">有门槛</span>
+            <span class="toggle-hint" id="thresholdHint">（可自定义消费金额门槛）</span>
+        </div>
+        <div id="thresholdAmountRow" style="margin: 8px 0 16px 0;">
+            <div class="setting-row">
+                <label>💰 消费门槛(元)</label>
+                <input type="number" id="thresholdAmountInput" value="5000" step="100" min="0" style="padding:8px; border-radius:8px; border:1.5px solid var(--border); width:140px;" onchange="updateThresholdAmount()">
+                <span style="font-size:12px; color:#64748b;">有门槛时用户需≥此金额</span>
+            </div>
+        </div>
+        <div class="setting-row" style="margin: 12px 0;">
+            <label>🔁 每人最多抽奖次数</label>
+            <input type="number" id="maxDrawsInput" value="1" min="1" max="10" step="1" style="padding:8px; border-radius:8px; border:1.5px solid var(--border); width:100px;" onchange="updateMaxDraws()">
+            <span style="font-size:12px; color:#64748b;">同一用户ID+手机号可抽奖的最大次数</span>
+        </div>
+
+        <div id="qualSection">
+            <p style="font-size:14px;color:#64748b;margin:8px 0 12px;">📋 导入用户资格 (Excel/CSV/JSON) — 需要包含 id 和 amount 列</p>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                <button class="btn btn-outline btn-sm" onclick="document.getElementById('importQualFile').click()">📤 导入资格表</button>
+                <input type="file" id="importQualFile" accept=".json,.csv,.xlsx" style="display:none;" onchange="importQualificationData(event)">
+                <button class="btn btn-danger btn-sm" onclick="clearQualificationData()">🗑️ 清空名单</button>
+            </div>
+            <div style="margin-top:12px;font-weight:600;">已导入用户数量：<span id="qualCount">0</span></div>
+            <div class="table-wrap" id="qualTableWrapper" style="display:none;">
+                <table><thead><tr><th>用户ID</th><th>消费金额(元)</th></tr></thead><tbody id="qualTableBody"></tbody></table>
+            </div>
+        </div>
+        <div id="noThresholdHint" style="display:none;padding:16px;background:#dbeafe;border-radius:12px;color:#1e40af;margin-top:8px;">
+            ✅ 无门槛模式：任意用户均可参与，需满足次数限制。
+        </div>
+    </div>
+
+    <!-- 配置 & 中奖管理 -->
+    <div class="card">
+        <div class="card-header"><span class="card-title"><span class="dot" style="background:#6366f1;"></span>配置 & 数据管理</span></div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap; margin-bottom:16px;">
+            <button class="btn btn-outline btn-sm" onclick="exportConfig()">📥 导出配置(JSON)</button>
+            <button class="btn btn-outline btn-sm" onclick="document.getElementById('importConfigFile').click()">📤 导入配置(JSON)</button>
+            <input type="file" id="importConfigFile" accept=".json" style="display:none;" onchange="importConfig(event)">
+            <button class="btn btn-primary btn-sm" onclick="exportWinList()">🏆 导出中奖名单 (CSV)</button>
+            <button class="btn btn-danger btn-sm" onclick="clearWinRecords()">🗑️ 清空中奖记录</button>
+        </div>
+        <p style="color:var(--text-secondary);font-size:13px;">💡 中奖名单包含用户ID、手机号、奖品、时间，可导出Excel/CSV。</p>
+    </div>
+
+    <div style="text-align:center; margin-top:8px;">
+        <button class="btn btn-primary" onclick="saveAndSwitchToWheel()" style="font-size:16px;padding:14px 32px;">💾 保存并切换到转盘</button>
+    </div>
+</div>
+
+<!-- 转盘视图 -->
+<div class="view-container" id="viewWheel">
+    <div class="wheel-wrapper">
+        <h2>🎯 幸运大转盘</h2>
+        <div id="modeBadge"></div>
+
+        <div class="auth-box" id="authBox">
+            <p style="font-weight:600;">请输入用户ID和手机号验证抽奖资格</p>
+            <input type="text" id="userIdInput" placeholder="用户ID" style="width:220px;">
+            <input type="tel" id="phoneInput" placeholder="11位手机号" maxlength="11" pattern="\d{11}" style="width:220px;">
+            <button class="btn btn-primary" onclick="verifyUser()">✅ 验证资格</button>
+            <p style="font-size:13px;" id="authHint"></p>
+        </div>
+
+        <div id="noThresholdBox" style="display:none; text-align:center; width:100%;">
+            <p style="font-weight:600;">🎉 无门槛抽奖</p>
+            <p style="font-size:13px; margin-bottom:8px;">请输入用户ID和11位手机号参与</p>
+            <input type="text" id="userIdInputFree" placeholder="用户ID" style="padding:10px; border-radius:8px; border:2px solid #e2e8f0; width:220px; margin-bottom:8px; display:block; margin-left:auto; margin-right:auto;">
+            <input type="tel" id="phoneInputFree" placeholder="11位手机号" maxlength="11" pattern="\d{11}" style="padding:10px; border-radius:8px; border:2px solid #e2e8f0; width:220px; margin-bottom:12px; display:block; margin-left:auto; margin-right:auto;">
+            <button class="btn btn-primary" onclick="startFreeMode()">🎲 开始抽奖</button>
+        </div>
+
+        <div id="wheelArea" style="display:none; width:100%; display:flex; flex-direction:column; align-items:center; gap:20px;">
+            <div class="canvas-container"><canvas id="wheelCanvas" width="460" height="460"></canvas><div class="pointer" id="pointerEl"></div><div class="center-btn" id="spinBtn">抽奖</div></div>
+            <div class="result-panel" id="resultPanel">🎉 点击中间按钮抽奖</div>
+            <div><button class="btn btn-outline btn-sm" onclick="switchTab('config')">⚙️ 返回配置</button><button class="btn btn-primary btn-sm" id="spinBtnBottom">🎲 抽奖</button></div>
+        </div>
+    </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+    // ---------- 预设主题 ----------
+    const PRESET_THEMES = [
+        { name: '彩虹经典', colors: ['#FF6B6B', '#FF8E53', '#FEC84B', '#10B981', '#3B82F6', '#6366F1','#EC4899','#F59E0B'] },
+        { name: '暖橙金秋', colors: ['#F97316', '#F59E0B', '#FBBF24', '#FCD34D', '#FDE68A', '#FEF3C7','#FFB347','#FF8C42'] },
+        { name: '海洋微风', colors: ['#0EA5E9', '#38BDF8', '#7DD3FC', '#BAE6FD', '#0284C7', '#0369A1','#0891B2','#06B6D4'] },
+        { name: '森林绿意', colors: ['#059669', '#10B981', '#34D399', '#6EE7B7', '#047857', '#065F46','#15803D','#22C55E'] },
+        { name: '暗夜霓虹', colors: ['#8B5CF6', '#A855F7', '#C084FC', '#7C3AED', '#6D28D9', '#5B21B6','#9333EA','#A78BFA'] }
+    ];
+    const DEFAULT_CONFIG = {
+        prizes: [
+            { name: '🏆 特等奖 iPhone', probability: 1, color: '#FF6B6B' },
+            { name: '🎧 AirPods Pro', probability: 3, color: '#FF8E53' },
+            { name: '🔊 蓝牙音箱', probability: 6, color: '#FEC84B' },
+            { name: '🎁 精美礼品盒', probability: 10, color: '#10B981' },
+            { name: '💵 50元优惠券', probability: 18, color: '#3B82F6' },
+            { name: '💵 20元优惠券', probability: 25, color: '#6366F1' },
+            { name: '💵 10元优惠券', probability: 37, color: '#EC4899' }
+        ],
+        settings: {
+            theme: '彩虹经典',
+            textColor: '#ffffff',
+            pointerColor: '#1e293b',
+            centerColor: '#ffffff',
+            minSpins: 6,
+            duration: 5,
+            threshold: true,
+            thresholdAmount: 5000,
+            maxDrawsPerUser: 1   // 每人最多抽奖次数
+        }
+    };
+    let config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+
+    const STORAGE_KEYS = { CONFIG: 'wheel_config_v3', QUAL: 'wheel_qual_data', WIN_RECORDS: 'wheel_win_records' };
+
+    function loadConfig() {
+        const saved = localStorage.getItem(STORAGE_KEYS.CONFIG);
+        if(saved) try { let p=JSON.parse(saved); if(p.prizes && p.settings) config=p; if(config.settings.thresholdAmount===undefined) config.settings.thresholdAmount=5000; if(config.settings.threshold===undefined) config.settings.threshold=true; if(config.settings.maxDrawsPerUser===undefined) config.settings.maxDrawsPerUser=1; }catch(e){}
+        if(!config.settings) config.settings = {...DEFAULT_CONFIG.settings};
+    }
+    function saveConfigToStorage() { localStorage.setItem(STORAGE_KEYS.CONFIG, JSON.stringify(config)); }
+    function getQualData() { try{ return JSON.parse(localStorage.getItem(STORAGE_KEYS.QUAL)||'[]'); }catch(e){ return []; } }
+    function setQualData(data){ localStorage.setItem(STORAGE_KEYS.QUAL, JSON.stringify(data)); }
+    function getWinRecords() { try{ return JSON.parse(localStorage.getItem(STORAGE_KEYS.WIN_RECORDS)||'[]'); }catch(e){ return []; } }
+    function saveWinRecords(records){ localStorage.setItem(STORAGE_KEYS.WIN_RECORDS, JSON.stringify(records)); }
+    
+    // 获取某用户（ID+手机号）已抽奖次数
+    function getUserDrawCount(userId, phone){
+        let records = getWinRecords();
+        return records.filter(r => r.userId === userId && r.phone === phone).length;
+    }
+    
+    function addWinRecord(userId, phone, prizeName){
+        let records = getWinRecords();
+        records.push({ userId: userId, phone: phone, prize: prizeName, timestamp: new Date().toISOString() });
+        saveWinRecords(records);
+    }
+
+    // ---------- UI 渲染 ----------
+    function renderPrizeList(){
+        const container=document.getElementById('prizeList');
+        container.innerHTML=config.prizes.map((p,i)=>`
+            <div class="prize-item">
+                <span style="width:32px;height:32px;border-radius:50%;background:${p.color};border:2px solid #e2e8f0; position:relative; overflow:hidden;">
+                    <input type="color" value="${p.color}" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer;" onchange="updatePrizeColor(${i}, this.value)">
+                </span>
+                <input type="text" value="${escapeHtml(p.name)}" placeholder="奖品名称" onchange="updatePrizeName(${i}, this.value)" style="flex:2; min-width:160px;">
+                <div style="display:flex; align-items:center; gap:4px;">
+                    <input type="number" class="prob-input" value="${p.probability}" step="0.1" min="0" max="100" onchange="updatePrizeProb(${i}, this.value)">
+                    <span class="prob-unit">%</span>
+                    <input type="range" class="prob-slider" value="${p.probability}" step="0.1" min="0" max="100" oninput="updatePrizeProb(${i}, this.value)">
+                    <span style="font-size:12px; min-width:36px;">${parseFloat(p.probability).toFixed(1)}%</span>
+                </div>
+                <button class="btn btn-danger btn-xs" onclick="removePrize(${i})">✕</button>
+            </div>`).join('');
+        updateProbSummary();
+    }
+    function updateProbSummary(){ let total=config.prizes.reduce((s,p)=>s+(p.probability||0),0); let el=document.getElementById('probSummary'); if(Math.abs(total-100)<0.01) el.className='prob-summary valid',el.innerHTML='✅ 概率总和：100%'; else el.className='prob-summary invalid',el.innerHTML=`⚠️ 概率总和：${total.toFixed(1)}% 需等于100%`; }
+    function renderThemeGrid(){
+        let cur=config.settings.theme;
+        document.getElementById('themeGrid').innerHTML=PRESET_THEMES.map(t=>`<div class="theme-chip ${t.name===cur?'active':''}" onclick="applyTheme('${t.name}')">${t.name}</div>`).join('')+`<div class="theme-chip ${!PRESET_THEMES.find(t=>t.name===cur)?'active':''}" onclick="applyTheme('custom')">🎨 自定义</div>`;
+    }
+    function renderSettings(){
+        document.getElementById('textColor').value=config.settings.textColor;
+        document.getElementById('pointerColor').value=config.settings.pointerColor;
+        document.getElementById('centerColor').value=config.settings.centerColor;
+        document.getElementById('minSpins').value=config.settings.minSpins;
+        document.getElementById('minSpinsVal').textContent=config.settings.minSpins;
+        document.getElementById('duration').value=config.settings.duration;
+        document.getElementById('durationVal').textContent=config.settings.duration+'s';
+        document.getElementById('thresholdAmountInput').value=config.settings.thresholdAmount||5000;
+        document.getElementById('maxDrawsInput').value=config.settings.maxDrawsPerUser||1;
+    }
+    function renderThresholdUI(){
+        let thr=config.settings.threshold;
+        let toggle=document.getElementById('thresholdToggle');
+        let label=document.getElementById('thresholdLabel');
+        let qualSec=document.getElementById('qualSection');
+        let noHint=document.getElementById('noThresholdHint');
+        let amountRow=document.getElementById('thresholdAmountRow');
+        if(thr){
+            toggle.classList.add('active');
+            label.textContent='有门槛';
+            qualSec.style.display='block';
+            noHint.style.display='none';
+            amountRow.style.display='block';
+        }else{
+            toggle.classList.remove('active');
+            label.textContent='无门槛';
+            qualSec.style.display='none';
+            noHint.style.display='block';
+            amountRow.style.display='none';
+        }
+        renderQualificationInfo();
+    }
+    function renderQualificationInfo(){
+        let data=getQualData();
+        document.getElementById('qualCount').textContent=data.length;
+        let wrap=document.getElementById('qualTableWrapper');
+        let tbody=document.getElementById('qualTableBody');
+        if(data.length>0 && config.settings.threshold){ wrap.style.display='block'; tbody.innerHTML=data.map(d=>`<tr><td>${escapeHtml(String(d.id))}</td><td>${d.amount}</td></tr>`).join('');}
+        else wrap.style.display='none';
+    }
+    window.updatePrizeColor=(i,val)=>{ config.prizes[i].color=val; config.settings.theme='custom'; renderAllConfig(); };
+    window.updatePrizeName=(i,val)=>{ config.prizes[i].name=val.trim()||'奖品'; renderPrizeList(); };
+    window.updatePrizeProb=(i,val)=>{ let n=parseFloat(val); if(isNaN(n))n=0; config.prizes[i].probability=Math.min(100,Math.max(0,n)); renderPrizeList(); };
+    window.addPrize=()=>{ config.prizes.push({name:'新奖品',probability:0,color:'#A78BFA'}); config.settings.theme='custom'; renderAllConfig(); };
+    window.removePrize=(i)=>{ if(config.prizes.length<=2){ showToast('至少保留2个奖品','error'); return; } config.prizes.splice(i,1); config.settings.theme='custom'; renderAllConfig(); };
+    window.applyTheme=(name)=>{ if(name!=='custom'){ let theme=PRESET_THEMES.find(t=>t.name===name); if(theme) config.prizes.forEach((p,i)=>p.color=theme.colors[i%theme.colors.length]); } config.settings.theme=name; renderAllConfig(); };
+    window.onSettingChange=()=>{ config.settings.textColor=document.getElementById('textColor').value; config.settings.pointerColor=document.getElementById('pointerColor').value; config.settings.centerColor=document.getElementById('centerColor').value; config.settings.minSpins=parseInt(document.getElementById('minSpins').value); config.settings.duration=parseFloat(document.getElementById('duration').value); };
+    window.updateThresholdAmount=()=>{ config.settings.thresholdAmount=parseFloat(document.getElementById('thresholdAmountInput').value)||0; saveConfigToStorage(); };
+    window.updateMaxDraws=()=>{ let val=parseInt(document.getElementById('maxDrawsInput').value); if(isNaN(val)) val=1; val=Math.min(10,Math.max(1,val)); config.settings.maxDrawsPerUser=val; document.getElementById('maxDrawsInput').value=val; saveConfigToStorage(); };
+    window.toggleThreshold=()=>{ config.settings.threshold=!config.settings.threshold; renderThresholdUI(); };
+    function renderAllConfig(){ renderPrizeList(); renderThemeGrid(); renderSettings(); renderThresholdUI(); }
+    window.resetToDefault=()=>{ if(confirm('恢复默认配置？')){ config=JSON.parse(JSON.stringify(DEFAULT_CONFIG)); renderAllConfig(); showToast('已重置'); } };
+    window.exportConfig=()=>{ let blob=new Blob([JSON.stringify(config,null,2)],{type:'application/json'}); let a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`wheel_config_${new Date().toISOString().slice(0,10)}.json`; a.click(); };
+    window.importConfig=(e)=>{ let f=e.target.files[0]; if(!f)return; let reader=new FileReader(); reader.onload=ev=>{ try{ let data=JSON.parse(ev.target.result); if(data.prizes&&data.settings) { config=data; if(config.settings.thresholdAmount===undefined) config.settings.thresholdAmount=5000; if(config.settings.maxDrawsPerUser===undefined) config.settings.maxDrawsPerUser=1; renderAllConfig(); showToast('配置导入成功'); } else throw new Error(); }catch(e){ showToast('无效JSON','error'); } }; reader.readAsText(f); e.target.value=''; };
+    window.clearQualificationData=()=>{ if(confirm('清空资格名单？')){ setQualData([]); renderQualificationInfo(); showToast('已清空'); } };
+    window.exportWinList=()=>{
+        let records=getWinRecords();
+        if(records.length===0){ showToast('暂无中奖记录','error'); return; }
+        let csvRows=[['用户ID','手机号','中奖奖品','中奖时间']];
+        records.forEach(r=>{ csvRows.push([r.userId, r.phone || '', r.prize, r.timestamp]); });
+        let csvContent=csvRows.map(row=>row.map(cell=>`"${String(cell).replace(/"/g,'""')}"`).join(',')).join('\n');
+        let blob=new Blob(["\uFEFF"+csvContent],{type:'text/csv;charset=utf-8;'}); let a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`中奖名单_${new Date().toISOString().slice(0,19)}.csv`; a.click(); showToast('导出成功');
+    };
+    window.clearWinRecords=()=>{ if(confirm('确定清空所有中奖记录？')){ localStorage.removeItem(STORAGE_KEYS.WIN_RECORDS); showToast('中奖记录已清空'); } };
+    window.saveAndSwitchToWheel=()=>{ onSettingChange(); updateThresholdAmount(); updateMaxDraws(); let total=config.prizes.reduce((s,p)=>s+(p.probability||0),0); if(Math.abs(total-100)>0.01){ showToast('概率总和必须100%','error'); return; } saveConfigToStorage(); showToast('配置已保存'); setTimeout(()=>switchTab('wheel'),300); };
+    
+    // 手机号校验
+    function isValidPhone(phone){ return /^1[3-9]\d{9}$/.test(phone); }
+    
+    // 资格导入解析
+    function importQualificationData(event){ let file=event.target.files[0]; if(!file)return; let reader=new FileReader(); reader.onload=async e=>{ let text=e.target.result; let rows=[]; if(file.name.endsWith('.json')){ let arr=JSON.parse(text); rows=arr.map(v=>({id:String(v.id||''),amount:Number(v.amount||0)})); } else if(file.name.endsWith('.csv')){ let lines=text.split(/\r?\n/); let sep=lines[0].includes(',')?',':','; let head=lines[0].split(sep); let idIdx=head.findIndex(h=>/id|用户/i.test(h)); let amtIdx=head.findIndex(h=>/amount|金额/i.test(h)); if(idIdx===-1||amtIdx===-1)throw new Error('缺少id/amount列'); rows=lines.slice(1).filter(l=>l.trim()).map(l=>{ let cols=l.split(sep); return {id:String(cols[idIdx]||'').trim(), amount:parseFloat(cols[amtIdx])||0}; }); } else if(file.name.endsWith('.xlsx')){ let ab=await file.arrayBuffer(); let wb=XLSX.read(ab); let ws=wb.Sheets[wb.SheetNames[0]]; let data=XLSX.utils.sheet_to_json(ws,{header:1}); let head=data[0]; let idIdx=head.findIndex(h=>/id|用户/i.test(String(h))); let amtIdx=head.findIndex(h=>/amount|金额/i.test(String(h))); if(idIdx===-1||amtIdx===-1)throw new Error('需要id与金额列'); rows=data.slice(1).map(row=>({id:String(row[idIdx]||'').trim(),amount:parseFloat(row[amtIdx])||0})); } else throw new Error('格式不支持'); let valid=rows.filter(r=>r.id&&!isNaN(r.amount)); setQualData(valid); renderQualificationInfo(); showToast(`导入${valid.length}条资格数据`); }; reader.readAsText(file); event.target.value=''; }
+    window.importQualificationData=importQualificationData;
+    
+    // 转盘逻辑
+    let wheelState={ currentRotation:0, isSpinning:false, prizes:[], settings:{}, verifiedUserId:null, verifiedPhone:null, threshold:true };
+    const canvas=document.getElementById('wheelCanvas'),ctx=canvas.getContext('2d');
+    function resizeCanvas(){ let wrap=document.getElementById('canvasWrapper'); let size=Math.min(wrap.clientWidth,wrap.clientHeight)||460; canvas.width=size; canvas.height=size; drawWheel(wheelState.currentRotation); }
+    
+    function drawWheel(rot){
+        let w=canvas.width,h=canvas.height,cx=w/2,cy=h/2,radius=Math.min(w,h)*0.42;
+        let prizes=wheelState.prizes;
+        let num=prizes.length;
+        let angleStep=2*Math.PI/num;
+        ctx.clearRect(0,0,w,h);
+        for(let i=0;i<num;i++){
+            let start=rot+i*angleStep;
+            let end=start+angleStep;
+            ctx.beginPath();
+            ctx.moveTo(cx,cy);
+            ctx.arc(cx,cy,radius,start,end);
+            ctx.fillStyle=prizes[i].color;
+            ctx.fill();
+            ctx.strokeStyle='rgba(255,255,255,0.6)';
+            ctx.lineWidth=2;
+            ctx.stroke();
+            ctx.save();
+            ctx.translate(cx,cy);
+            ctx.rotate(start+angleStep/2);
+            ctx.textAlign='center';
+            ctx.textBaseline='middle';
+            let text=prizes[i].name;
+            let maxWidth=radius*0.72;
+            let fontSize=Math.min(18, Math.max(10, maxWidth / (text.length * 0.6)));
+            ctx.font=`bold ${fontSize}px "PingFang SC", "Microsoft YaHei", sans-serif`;
+            let textWidth=ctx.measureText(text).width;
+            if(textWidth>maxWidth){
+                let newSize=Math.floor(maxWidth/(text.length*0.55));
+                newSize=Math.min(16,Math.max(9,newSize));
+                ctx.font=`bold ${newSize}px "PingFang SC", "Microsoft YaHei", sans-serif`;
+                textWidth=ctx.measureText(text).width;
+                if(textWidth>maxWidth && text.length>4){
+                    let short=text;
+                    while(ctx.measureText(short+'...').width>maxWidth && short.length>2){
+                        short=short.slice(0,-1);
+                    }
+                    text=short+'...';
+                }
+            }
+            ctx.fillStyle=wheelState.settings.textColor;
+            ctx.shadowColor='rgba(0,0,0,0.3)';
+            ctx.shadowBlur=3;
+            ctx.fillText(text, radius*0.65, 0);
+            ctx.restore();
+        }
+        ctx.beginPath();
+        ctx.arc(cx,cy,radius*0.12,0,2*Math.PI);
+        ctx.fillStyle=wheelState.settings.centerColor;
+        ctx.fill();
+        ctx.strokeStyle='#e2e8f0';
+        ctx.lineWidth=3;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(cx,cy,radius+5,0,2*Math.PI);
+        ctx.strokeStyle='#e2e8f0';
+        ctx.stroke();
+    }
+    
+    function getWinIndex(){ let rand=Math.random(),cum=0; for(let i=0;i<wheelState.prizes.length;i++){ cum+=wheelState.prizes[i]._norm; if(rand<cum) return i; } return wheelState.prizes.length-1; }
+    function performSpin(userId, phone){ if(wheelState.isSpinning) return; let winIdx=getWinIndex(); let num=wheelState.prizes.length,angleStep=2*Math.PI/num; let baseTarget=-Math.PI/2-winIdx*angleStep-angleStep/2; let fullTurns=(wheelState.settings.minSpins||6)*2*Math.PI; let targetRot=baseTarget+fullTurns; while(targetRot<wheelState.currentRotation+Math.PI) targetRot+=2*Math.PI; let startRot=wheelState.currentRotation,totalDelta=targetRot-startRot,dur=(wheelState.settings.duration||5)*1000,startTime=performance.now(); wheelState.isSpinning=true; document.getElementById('spinBtn').classList.add('disabled'); document.getElementById('spinBtnBottom').disabled=true; document.getElementById('resultPanel').innerHTML='🎡 旋转中...'; function animate(now){ let elapsed=now-startTime,prog=Math.min(elapsed/dur,1),ease=1-Math.pow(1-prog,3); wheelState.currentRotation=startRot+totalDelta*ease; drawWheel(wheelState.currentRotation); if(prog<1) requestAnimationFrame(animate); else{ wheelState.currentRotation=targetRot%(2*Math.PI); drawWheel(wheelState.currentRotation); wheelState.isSpinning=false; addWinRecord(userId, phone, wheelState.prizes[winIdx].name); document.getElementById('resultPanel').innerHTML=`🎉 恭喜中奖：<strong>${wheelState.prizes[winIdx].name}</strong><br><small>用户 ${escapeHtml(userId)} (${phone}) 已记录</small>`; document.getElementById('spinBtn').classList.add('disabled'); document.getElementById('spinBtnBottom').disabled=true; } } requestAnimationFrame(animate); }
+    function initWheelView(){ loadConfig(); let total=config.prizes.reduce((s,p)=>s+(p.probability||0),0); let norm=config.prizes.map(p=>({...p,_norm:total>0?p.probability/total:1/config.prizes.length})); wheelState.prizes=norm; wheelState.settings={...config.settings}; wheelState.currentRotation=0; wheelState.verifiedUserId=null; wheelState.verifiedPhone=null; wheelState.threshold=config.settings.threshold; document.getElementById('modeBadge').innerHTML=wheelState.threshold? '<span class="mode-badge restricted">🔒 有门槛模式</span>':'<span class="mode-badge free">🌟 无门槛模式</span>'; let authHint=document.getElementById('authHint'); if(wheelState.threshold) authHint.innerText=`消费需达到 ${config.settings.thresholdAmount} 元且每人最多抽奖 ${config.settings.maxDrawsPerUser} 次`; else authHint.innerText=`无门槛模式，每人最多抽奖 ${config.settings.maxDrawsPerUser} 次，需填写手机号`; if(wheelState.threshold){ document.getElementById('authBox').style.display='flex'; document.getElementById('noThresholdBox').style.display='none'; }else{ document.getElementById('authBox').style.display='none'; document.getElementById('noThresholdBox').style.display='block'; } document.getElementById('wheelArea').style.display='none'; resizeCanvas(); drawWheel(0); }
+    
+    window.verifyUser=()=>{
+        let userId=document.getElementById('userIdInput').value.trim();
+        let phone=document.getElementById('phoneInput').value.trim();
+        if(!userId){ showToast('请输入用户ID','error'); return; }
+        if(!isValidPhone(phone)){ showToast('请输入正确的11位手机号','error'); return; }
+        let qual=getQualData();
+        let record=qual.find(d=>String(d.id)===userId);
+        let thresholdAmt=config.settings.thresholdAmount||5000;
+        if(!record){ showToast('未找到该用户资格','error'); return; }
+        if(record.amount<thresholdAmt){ showToast(`消费${record.amount}元，未达门槛${thresholdAmt}元`,'error'); return; }
+        let drawCount=getUserDrawCount(userId, phone);
+        let maxDraws=config.settings.maxDrawsPerUser||1;
+        if(drawCount>=maxDraws){ showToast(`您已抽奖${drawCount}次，最多可抽${maxDraws}次`,'error'); return; }
+        wheelState.verifiedUserId=userId;
+        wheelState.verifiedPhone=phone;
+        document.getElementById('authBox').style.display='none';
+        document.getElementById('wheelArea').style.display='flex';
+        document.getElementById('resultPanel').innerHTML=`✅ 验证通过 (消费${record.amount}元) 手机号${phone} 剩余抽奖次数${maxDraws-drawCount}`;
+        resizeCanvas();
+    };
+    
+    window.startFreeMode=()=>{
+        let userId=document.getElementById('userIdInputFree').value.trim();
+        let phone=document.getElementById('phoneInputFree').value.trim();
+        if(!userId){ showToast('请输入用户ID','error'); return; }
+        if(!isValidPhone(phone)){ showToast('请输入正确的11位手机号','error'); return; }
+        let drawCount=getUserDrawCount(userId, phone);
+        let maxDraws=config.settings.maxDrawsPerUser||1;
+        if(drawCount>=maxDraws){ showToast(`您已抽奖${drawCount}次，最多可抽${maxDraws}次`,'error'); return; }
+        wheelState.verifiedUserId=userId;
+        wheelState.verifiedPhone=phone;
+        document.getElementById('noThresholdBox').style.display='none';
+        document.getElementById('wheelArea').style.display='flex';
+        document.getElementById('resultPanel').innerHTML=`🎉 无门槛模式，用户 ${userId} (${phone}) 剩余抽奖次数${maxDraws-drawCount}`;
+        resizeCanvas();
+    };
+    
+    document.getElementById('spinBtn').addEventListener('click',()=>{ if(wheelState.verifiedUserId && wheelState.verifiedPhone) performSpin(wheelState.verifiedUserId, wheelState.verifiedPhone); });
+    document.getElementById('spinBtnBottom').addEventListener('click',()=>{ if(wheelState.verifiedUserId && wheelState.verifiedPhone) performSpin(wheelState.verifiedUserId, wheelState.verifiedPhone); });
+    
+    function switchTab(tab){ document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active')); document.querySelectorAll('.view-container').forEach(v=>v.classList.remove('active')); if(tab==='config'){ document.querySelector('[data-tab="config"]').classList.add('active'); document.getElementById('viewConfig').classList.add('active'); loadConfig(); renderAllConfig(); }else{ document.querySelector('[data-tab="wheel"]').classList.add('active'); document.getElementById('viewWheel').classList.add('active'); loadConfig(); initWheelView(); } }
+    window.switchTab=switchTab;
+    function showToast(msg,type=''){ let toast=document.getElementById('toast'); toast.textContent=msg; toast.className='toast show'; if(type)toast.classList.add(type); setTimeout(()=>toast.classList.remove('show'),2000); }
+    window.showToast=showToast;
+    function escapeHtml(s){ let div=document.createElement('div'); div.textContent=s; return div.innerHTML; }
+    window.addEventListener('resize',()=>{ if(document.getElementById('viewWheel').classList.contains('active')) resizeCanvas(); });
+    loadConfig(); renderAllConfig(); switchTab('config');
+</script>
+</body>
+</html>
